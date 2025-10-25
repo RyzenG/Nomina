@@ -23,6 +23,8 @@ form.addEventListener("submit", (event) => {
   const endRaw = form.end.value;
   const dayType = form["day-type"].value;
   const restRaw = form.rest.value;
+  const restStartRaw = form["rest-start"].value;
+  const restEndRaw = form["rest-end"].value;
 
   if (!person) {
     errorsEl.textContent = "Debe indicar la persona asociada a la jornada.";
@@ -64,11 +66,64 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
+  let restStartDate = null;
+  let restEndDate = null;
+
+  if (restMinutes > 0) {
+    if (!restStartRaw) {
+      errorsEl.textContent = "Debe indicar la hora de inicio del descanso.";
+      return;
+    }
+
+    restStartDate = new Date(restStartRaw);
+    if (Number.isNaN(restStartDate.getTime())) {
+      errorsEl.textContent = "La hora de inicio del descanso no es válida.";
+      return;
+    }
+
+    if (restStartDate < startDate || restStartDate >= endDate) {
+      errorsEl.textContent = "El inicio del descanso debe estar dentro de la jornada.";
+      return;
+    }
+
+    if (restEndRaw) {
+      restEndDate = new Date(restEndRaw);
+      if (Number.isNaN(restEndDate.getTime())) {
+        errorsEl.textContent = "La hora de fin del descanso no es válida.";
+        return;
+      }
+    } else {
+      restEndDate = new Date(restStartDate.getTime() + restMinutes * 60000);
+    }
+
+    if (restEndDate <= restStartDate) {
+      errorsEl.textContent = "El fin del descanso debe ser posterior al inicio.";
+      return;
+    }
+
+    if (restEndDate > endDate) {
+      errorsEl.textContent = "El descanso debe finalizar antes de terminar la jornada.";
+      return;
+    }
+
+    const restDuration = differenceInMinutes(restStartDate, restEndDate);
+    if (Math.abs(restDuration - restMinutes) > 1e-6) {
+      errorsEl.textContent = "La duración del descanso no coincide con los minutos indicados.";
+      return;
+    }
+  } else if (restStartRaw || restEndRaw) {
+    errorsEl.textContent = "Si no se descansa, no indique horas de inicio o fin de descanso.";
+    return;
+  }
+
+  const restRange = restMinutes > 0 ? { start: restStartDate, end: restEndDate } : null;
+
   const calculation = calculateShift({
     start: startDate,
     end: endDate,
     dayTypeOverride: dayType,
     restMinutes,
+    restRange,
   });
 
   const entries = Object.entries(calculation.minutesByDay).map(
@@ -112,10 +167,10 @@ resetButton.addEventListener("click", () => {
 personFilter.addEventListener("change", handleFilterChange);
 weekFilter.addEventListener("change", handleFilterChange);
 
-function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
+function calculateShift({ start, end, dayTypeOverride, restMinutes, restRange }) {
   let segments = splitIntoSegments(start, end);
-  if (restMinutes > 0) {
-    segments = applyRestToSegments(segments, restMinutes);
+  if (restMinutes > 0 && restRange) {
+    segments = removeRestFromSegments(segments, restRange.start, restRange.end);
   }
 
   const dayOrdinaryBudget = new Map();
@@ -216,26 +271,46 @@ function splitIntoSegments(start, end) {
   return segments;
 }
 
-function applyRestToSegments(segments, restMinutes) {
-  let remaining = restMinutes;
-  const adjusted = segments.map((segment) => ({
-    start: new Date(segment.start),
-    end: new Date(segment.end),
-  }));
+function removeRestFromSegments(segments, restStart, restEnd) {
+  if (!restStart || !restEnd) {
+    return segments;
+  }
 
-  for (let i = adjusted.length - 1; i >= 0 && remaining > 0; i -= 1) {
-    const segment = adjusted[i];
-    const duration = differenceInMinutes(segment.start, segment.end);
-    const deduction = Math.min(duration, remaining);
-    segment.end = new Date(segment.end.getTime() - deduction * 60000);
-    remaining -= deduction;
+  const restStartMs = restStart.getTime();
+  const restEndMs = restEnd.getTime();
+  const trimmed = [];
 
-    if (segment.end <= segment.start) {
-      adjusted.splice(i, 1);
+  for (const segment of segments) {
+    const segmentStartMs = segment.start.getTime();
+    const segmentEndMs = segment.end.getTime();
+
+    const overlapStart = Math.max(segmentStartMs, restStartMs);
+    const overlapEnd = Math.min(segmentEndMs, restEndMs);
+
+    if (overlapStart >= overlapEnd) {
+      trimmed.push({
+        start: new Date(segmentStartMs),
+        end: new Date(segmentEndMs),
+      });
+      continue;
+    }
+
+    if (segmentStartMs < overlapStart) {
+      trimmed.push({
+        start: new Date(segmentStartMs),
+        end: new Date(overlapStart),
+      });
+    }
+
+    if (overlapEnd < segmentEndMs) {
+      trimmed.push({
+        start: new Date(overlapEnd),
+        end: new Date(segmentEndMs),
+      });
     }
   }
 
-  return adjusted;
+  return trimmed;
 }
 
 function nextBoundary(date) {
@@ -290,6 +365,13 @@ function isDiurnalSegment(segment) {
 
 function differenceInMinutes(start, end) {
   return (end - start) / 60000;
+}
+
+function sumMinutes(record) {
+  return Object.values(record || {}).reduce(
+    (acc, value) => acc + (value ?? 0),
+    0
+  );
 }
 
 function toHours(minutes) {
@@ -527,14 +609,82 @@ function formatDayLabel(dayKey) {
   });
 }
 
+function logManualExamples() {
+  if (typeof console === "undefined") {
+    return;
+  }
+
+  const log = typeof console.log === "function" ? console.log.bind(console) : () => {};
+  const group = typeof console.group === "function" ? console.group.bind(console) : log;
+  const groupEnd = typeof console.groupEnd === "function"
+    ? console.groupEnd.bind(console)
+    : () => {};
+
+  const beforeTwentyOne = calculateShift({
+    start: new Date("2024-05-10T18:00:00"),
+    end: new Date("2024-05-11T05:00:00"),
+    dayTypeOverride: "auto",
+    restMinutes: 30,
+    restRange: {
+      start: new Date("2024-05-10T20:00:00"),
+      end: new Date("2024-05-10T20:30:00"),
+    },
+  });
+
+  group("Prueba manual: descanso antes de 21:00");
+  log("Totales (minutos):", beforeTwentyOne.totals);
+  log(
+    "Horas nocturnas esperadas (8.00 h):",
+    toHours(beforeTwentyOne.totals.rn + beforeTwentyOne.totals.hen).toFixed(2)
+  );
+  log(
+    "Horas totales esperadas (10.50 h):",
+    toHours(
+      beforeTwentyOne.totals.ordinary +
+        beforeTwentyOne.totals.rn +
+        beforeTwentyOne.totals.hed +
+        beforeTwentyOne.totals.hedf +
+        beforeTwentyOne.totals.hen
+    ).toFixed(2)
+  );
+  groupEnd();
+
+  const splitNight = calculateShift({
+    start: new Date("2024-03-03T19:00:00"),
+    end: new Date("2024-03-04T05:00:00"),
+    dayTypeOverride: "auto",
+    restMinutes: 60,
+    restRange: {
+      start: new Date("2024-03-03T22:00:00"),
+      end: new Date("2024-03-03T23:00:00"),
+    },
+  });
+
+  group("Prueba manual: totales diarios con descanso");
+  log(
+    "Totales domingo (h):",
+    toHours(sumMinutes(splitNight.minutesByDay["2024-03-03"])).toFixed(2)
+  );
+  log(
+    "Totales lunes (h):",
+    toHours(sumMinutes(splitNight.minutesByDay["2024-03-04"])).toFixed(2)
+  );
+  log("Detalle por día (minutos):", splitNight.minutesByDay);
+  groupEnd();
+}
+
 updateFilters();
 updateTable();
 updateSummary();
 
+logManualExamples();
+
 // Pruebas manuales sugeridas:
-// 1. Domingo 19:00 a lunes 05:00 con descanso 0. Las horas de 00:00 a 05:00 deben contarse
-//    como recargo nocturno ordinario del lunes (no como dominicales).
-// 2. Viernes 18:00 a sábado 05:00 para validar horas diurnas ordinarias, RN y HEN.
+// 1. Domingo 19:00 a lunes 05:00 con descanso de 60 minutos entre 22:00 y 23:00.
+//    Confirmar que el descanso solo afecta el tramo indicado y que los totales diarios
+//    coinciden con las expectativas.
+// 2. Viernes 18:00 a sábado 05:00 con descanso de 30 minutos antes de las 21:00 para
+//    verificar que las horas nocturnas posteriores se mantienen.
 // 3. Registrar una jornada que inicie el domingo y termine el lunes (por ejemplo, 22:00 a 06:00)
 //    y verificar que, al filtrar por semana ISO, cada semana muestre únicamente las horas
 //    correspondientes a sus días.
