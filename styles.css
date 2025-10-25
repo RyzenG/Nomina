@@ -63,6 +63,12 @@ aside {
   gap: 0.35rem;
 }
 
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: light-dark(#666, #bbb);
+}
+
 .field label {
   font-weight: 600;
 }
@@ -150,6 +156,20 @@ tbody tr:nth-child(even) td {
   margin: 0;
   display: grid;
   gap: var(--spacing);
+}
+
+.summary .filters {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: var(--spacing);
+}
+
+.summary .filters label {
+  font-weight: 600;
+}
+
+.summary .filters select {
+  width: 100%;
 }
 
 .summary div {

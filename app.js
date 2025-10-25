@@ -2,6 +2,8 @@ const form = document.getElementById("shift-form");
 const errorsEl = document.getElementById("form-errors");
 const tableBody = document.getElementById("results-body");
 const resetButton = document.getElementById("reset");
+const personFilter = document.getElementById("person-filter");
+const weekFilter = document.getElementById("week-filter");
 const totalsEls = {
   rn: document.getElementById("total-rn"),
   hed: document.getElementById("total-hed"),
@@ -16,10 +18,17 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   errorsEl.textContent = "";
 
+  const person = form.person.value.trim();
   const startRaw = form.start.value;
   const endRaw = form.end.value;
+  const weekRaw = form.week.value;
   const dayType = form["day-type"].value;
   const restRaw = form.rest.value;
+
+  if (!person) {
+    errorsEl.textContent = "Debe indicar la persona asociada a la jornada.";
+    return;
+  }
 
   if (!startRaw || !endRaw) {
     errorsEl.textContent = "Debe indicar las fechas de inicio y fin de la jornada.";
@@ -56,6 +65,8 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
+  const computedWeek = weekRaw || getISOWeek(startDate);
+
   const calculation = calculateShift({
     start: startDate,
     end: endDate,
@@ -63,7 +74,16 @@ form.addEventListener("submit", (event) => {
     restMinutes,
   });
 
-  records.push(calculation);
+  records.push({
+    person,
+    week: computedWeek,
+    start: startDate,
+    end: endDate,
+    minutesByDay: calculation.minutesByDay,
+    totals: calculation.totals,
+  });
+
+  updateFilters();
   updateTable();
   updateSummary();
   form.reset();
@@ -71,11 +91,15 @@ form.addEventListener("submit", (event) => {
 
 resetButton.addEventListener("click", () => {
   records.length = 0;
+  updateFilters();
   updateTable();
   updateSummary();
   form.reset();
   errorsEl.textContent = "";
 });
+
+personFilter.addEventListener("change", handleFilterChange);
+weekFilter.addEventListener("change", handleFilterChange);
 
 function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
   let segments = splitIntoSegments(start, end);
@@ -85,11 +109,25 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
 
   const dayOrdinaryBudget = new Map();
   const totals = {
-    ordinaryMinutes: 0,
-    rnMinutes: 0,
-    hedMinutes: 0,
-    hedfMinutes: 0,
-    henMinutes: 0,
+    ordinary: 0,
+    rn: 0,
+    hed: 0,
+    hedf: 0,
+    hen: 0,
+  };
+  const minutesByDay = new Map();
+
+  const ensureDayTotals = (dayKey) => {
+    if (!minutesByDay.has(dayKey)) {
+      minutesByDay.set(dayKey, {
+        ordinary: 0,
+        rn: 0,
+        hed: 0,
+        hedf: 0,
+        hen: 0,
+      });
+    }
+    return minutesByDay.get(dayKey);
   };
 
   for (const segment of segments) {
@@ -99,6 +137,7 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
     const dayKey = segment.start.toISOString().slice(0, 10);
     const dayType = resolveDayType(segment.start, dayTypeOverride);
     const isDiurnal = isDiurnalSegment(segment);
+    const dayTotals = ensureDayTotals(dayKey);
 
     if (!dayOrdinaryBudget.has(dayKey)) {
       dayOrdinaryBudget.set(dayKey, 480); // 8 horas diarias estándar.
@@ -110,14 +149,18 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
       const remaining = minutes - usable;
 
       if (isDiurnal) {
-        totals.ordinaryMinutes += usable;
+        totals.ordinary += usable;
+        dayTotals.ordinary += usable;
         if (remaining > 0) {
-          totals.hedMinutes += remaining;
+          totals.hed += remaining;
+          dayTotals.hed += remaining;
         }
       } else {
-        totals.rnMinutes += usable;
+        totals.rn += usable;
+        dayTotals.rn += usable;
         if (remaining > 0) {
-          totals.henMinutes += remaining;
+          totals.hen += remaining;
+          dayTotals.hen += remaining;
         }
       }
 
@@ -126,26 +169,25 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
       // Para jornadas dominicales o festivas tratamos todas las horas diurnas como HEDF
       // y las nocturnas como HEN (recargo nocturno festivo/dom.).
       if (isDiurnal) {
-        totals.hedfMinutes += minutes;
+        totals.hedf += minutes;
+        dayTotals.hedf += minutes;
       } else {
-        totals.henMinutes += minutes;
+        totals.hen += minutes;
+        dayTotals.hen += minutes;
       }
     }
   }
 
-  const hours = {
-    rn: toHours(totals.rnMinutes),
-    hed: toHours(totals.hedMinutes),
-    hedf: toHours(totals.hedfMinutes),
-    hen: toHours(totals.henMinutes),
-    ordinary: toHours(totals.ordinaryMinutes),
-  };
+  const minutesByDayObject = Object.fromEntries(
+    Array.from(minutesByDay.entries()).map(([day, values]) => [day, { ...values }])
+  );
 
   return {
     start,
     end,
     dayType: resolveDayType(start, dayTypeOverride, true),
-    hours,
+    totals,
+    minutesByDay: minutesByDayObject,
   };
 }
 
@@ -243,13 +285,6 @@ function toHours(minutes) {
   return Math.round((minutes / 60) * 100) / 100;
 }
 
-function formatDateTime(date) {
-  return date.toLocaleString("es-CO", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
-
 function capitalize(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -257,61 +292,192 @@ function capitalize(value) {
 function updateTable() {
   tableBody.innerHTML = "";
 
-  if (records.length === 0) {
+  const filtered = getFilteredRecords();
+
+  if (filtered.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 9;
+    cell.colSpan = 8;
     cell.className = "empty";
-    cell.textContent = "No hay jornadas registradas.";
+    cell.textContent = "No hay jornadas para los filtros seleccionados.";
     row.append(cell);
     tableBody.append(row);
     return;
   }
 
-  records.forEach((record, index) => {
-    const row = document.createElement("tr");
+  const grouped = new Map();
 
-    const totalHours =
-      record.hours.ordinary + record.hours.rn + record.hours.hed + record.hours.hedf + record.hours.hen;
+  for (const record of filtered) {
+    if (!grouped.has(record.person)) {
+      grouped.set(record.person, new Map());
+    }
+    const weekMap = grouped.get(record.person);
+    if (!weekMap.has(record.week)) {
+      weekMap.set(record.week, new Map());
+    }
+    const dayMap = weekMap.get(record.week);
 
-    row.innerHTML = `
-      <td>${index + 1}</td>
-      <td>${formatDateTime(record.start)}</td>
-      <td>${formatDateTime(record.end)}</td>
-      <td>${record.dayType}</td>
-      <td>${record.hours.rn.toFixed(2)}</td>
-      <td>${record.hours.hed.toFixed(2)}</td>
-      <td>${record.hours.hedf.toFixed(2)}</td>
-      <td>${record.hours.hen.toFixed(2)}</td>
-      <td>${totalHours.toFixed(2)}</td>
-    `;
+    for (const [dayKey, values] of Object.entries(record.minutesByDay)) {
+      if (!dayMap.has(dayKey)) {
+        dayMap.set(dayKey, {
+          ordinary: 0,
+          rn: 0,
+          hed: 0,
+          hedf: 0,
+          hen: 0,
+        });
+      }
+      const accumulator = dayMap.get(dayKey);
+      accumulator.ordinary += values.ordinary ?? 0;
+      accumulator.rn += values.rn ?? 0;
+      accumulator.hed += values.hed ?? 0;
+      accumulator.hedf += values.hedf ?? 0;
+      accumulator.hen += values.hen ?? 0;
+    }
+  }
 
-    tableBody.append(row);
-  });
+  const sortedPersons = Array.from(grouped.keys()).sort((a, b) =>
+    a.localeCompare(b, "es", { sensitivity: "base" })
+  );
+
+  for (const person of sortedPersons) {
+    const weeks = grouped.get(person);
+    const sortedWeeks = Array.from(weeks.keys()).sort();
+
+    for (const week of sortedWeeks) {
+      const days = weeks.get(week);
+      const sortedDays = Array.from(days.keys()).sort();
+
+      for (const dayKey of sortedDays) {
+        const values = days.get(dayKey);
+        const rnHours = toHours(values.rn);
+        const hedHours = toHours(values.hed);
+        const hedfHours = toHours(values.hedf);
+        const henHours = toHours(values.hen);
+        const totalHours = toHours(
+          values.ordinary + values.rn + values.hed + values.hedf + values.hen
+        );
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${person}</td>
+          <td>${week}</td>
+          <td>${formatDayLabel(dayKey)}</td>
+          <td>${rnHours.toFixed(2)}</td>
+          <td>${hedHours.toFixed(2)}</td>
+          <td>${hedfHours.toFixed(2)}</td>
+          <td>${henHours.toFixed(2)}</td>
+          <td>${totalHours.toFixed(2)}</td>
+        `;
+
+        tableBody.append(row);
+      }
+    }
+  }
 }
 
 function updateSummary() {
-  const totals = records.reduce(
+  const filtered = getFilteredRecords();
+  const totals = filtered.reduce(
     (acc, record) => {
-      acc.rn += record.hours.rn;
-      acc.hed += record.hours.hed;
-      acc.hedf += record.hours.hedf;
-      acc.hen += record.hours.hen;
-      acc.ordinary += record.hours.ordinary;
+      acc.rn += record.totals.rn;
+      acc.hed += record.totals.hed;
+      acc.hedf += record.totals.hedf;
+      acc.hen += record.totals.hen;
+      acc.ordinary += record.totals.ordinary;
       return acc;
     },
     { rn: 0, hed: 0, hedf: 0, hen: 0, ordinary: 0 }
   );
 
-  const totalHours =
-    totals.rn + totals.hed + totals.hedf + totals.hen + totals.ordinary;
+  totalsEls.rn.textContent = toHours(totals.rn).toFixed(2);
+  totalsEls.hed.textContent = toHours(totals.hed).toFixed(2);
+  totalsEls.hedf.textContent = toHours(totals.hedf).toFixed(2);
+  totalsEls.hen.textContent = toHours(totals.hen).toFixed(2);
 
-  totalsEls.rn.textContent = totals.rn.toFixed(2);
-  totalsEls.hed.textContent = totals.hed.toFixed(2);
-  totalsEls.hedf.textContent = totals.hedf.toFixed(2);
-  totalsEls.hen.textContent = totals.hen.toFixed(2);
+  const totalHours = toHours(totals.rn + totals.hed + totals.hedf + totals.hen + totals.ordinary);
   totalsEls.hours.textContent = totalHours.toFixed(2);
 }
+
+function getFilteredRecords() {
+  return records.filter((record) => {
+    if (personFilter.value && record.person !== personFilter.value) {
+      return false;
+    }
+    if (weekFilter.value && record.week !== weekFilter.value) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function updateFilters() {
+  updateSelectOptions(
+    personFilter,
+    Array.from(new Set(records.map((record) => record.person))).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" })
+    ),
+    "Todas las personas"
+  );
+
+  updateSelectOptions(
+    weekFilter,
+    Array.from(new Set(records.map((record) => record.week))).sort(),
+    "Todas las semanas"
+  );
+}
+
+function updateSelectOptions(selectEl, values, defaultLabel) {
+  const previousValue = selectEl.value;
+  selectEl.innerHTML = "";
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = defaultLabel;
+  selectEl.append(defaultOption);
+
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    selectEl.append(option);
+  });
+
+  if (values.includes(previousValue)) {
+    selectEl.value = previousValue;
+  } else {
+    selectEl.value = "";
+  }
+}
+
+function handleFilterChange() {
+  updateTable();
+  updateSummary();
+}
+
+function getISOWeek(date) {
+  const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((tmp - yearStart) / 86400000 + 1) / 7);
+  return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function formatDayLabel(dayKey) {
+  const [year, month, day] = dayKey.split("-").map((part) => Number.parseInt(part, 10));
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("es-CO", {
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
+updateFilters();
+updateTable();
+updateSummary();
 
 // Pruebas manuales sugeridas:
 // 1. Domingo 19:00 a lunes 05:00 con descanso 0. Las horas de 00:00 a 05:00 deben contarse
