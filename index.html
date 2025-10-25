@@ -17,12 +17,21 @@
       <h2 id="form-title">Registrar jornada</h2>
       <form id="shift-form" novalidate>
         <div class="field">
+          <label for="person">Persona</label>
+          <input type="text" id="person" name="person" required />
+        </div>
+        <div class="field">
           <label for="start">Inicio de la jornada</label>
           <input type="datetime-local" id="start" name="start" required />
         </div>
         <div class="field">
           <label for="end">Fin de la jornada</label>
           <input type="datetime-local" id="end" name="end" required />
+        </div>
+        <div class="field">
+          <label for="week">Semana (opcional)</label>
+          <input type="week" id="week" name="week" />
+          <p class="hint">Si se omite, se calculará la semana ISO a partir de la fecha de inicio.</p>
         </div>
         <div class="field">
           <label for="day-type">Tipo de día</label>
@@ -51,10 +60,9 @@
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Inicio</th>
-              <th>Fin</th>
-              <th>Tipo</th>
+              <th>Persona</th>
+              <th>Semana</th>
+              <th>Día</th>
               <th>RN (h)</th>
               <th>HED (h)</th>
               <th>HEDF (h)</th>
@@ -64,7 +72,7 @@
           </thead>
           <tbody id="results-body">
             <tr>
-              <td colspan="9" class="empty">No hay jornadas registradas.</td>
+              <td colspan="8" class="empty">No hay jornadas para los filtros seleccionados.</td>
             </tr>
           </tbody>
         </table>
@@ -73,6 +81,16 @@
 
     <aside class="summary" aria-labelledby="summary-title">
       <h2 id="summary-title">Resumen de horas acumuladas</h2>
+      <div class="filters" aria-label="Filtros de resumen">
+        <label for="person-filter">Persona</label>
+        <select id="person-filter">
+          <option value="">Todas las personas</option>
+        </select>
+        <label for="week-filter">Semana</label>
+        <select id="week-filter">
+          <option value="">Todas las semanas</option>
+        </select>
+      </div>
       <dl>
         <div>
           <dt>Total RN</dt>
