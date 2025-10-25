@@ -13,6 +13,7 @@ const totalsEls = {
 };
 
 const records = [];
+const weeklyOrdinaryMinutesByPerson = new Map();
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -119,6 +120,7 @@ form.addEventListener("submit", (event) => {
   const restRange = restMinutes > 0 ? { start: restStartDate, end: restEndDate } : null;
 
   const calculation = calculateShift({
+    person,
     start: startDate,
     end: endDate,
     dayTypeOverride: dayType,
@@ -157,6 +159,7 @@ form.addEventListener("submit", (event) => {
 
 resetButton.addEventListener("click", () => {
   records.length = 0;
+  weeklyOrdinaryMinutesByPerson.clear();
   updateFilters();
   updateTable();
   updateSummary();
@@ -167,7 +170,23 @@ resetButton.addEventListener("click", () => {
 personFilter.addEventListener("change", handleFilterChange);
 weekFilter.addEventListener("change", handleFilterChange);
 
-function calculateShift({ start, end, dayTypeOverride, restMinutes, restRange }) {
+function calculateShift({
+  person,
+  start,
+  end,
+  dayTypeOverride,
+  restMinutes,
+  restRange,
+}) {
+  const personKey = person || "__anon__";
+
+  if (!weeklyOrdinaryMinutesByPerson.has(personKey)) {
+    weeklyOrdinaryMinutesByPerson.set(personKey, new Map());
+  }
+
+  const weeklyOrdinaryMinutes = weeklyOrdinaryMinutesByPerson.get(personKey);
+  const WEEKLY_ORDINARY_LIMIT = 2640; // 44 horas semanales.
+
   let segments = splitIntoSegments(start, end);
   if (restMinutes > 0 && restRange) {
     segments = removeRestFromSegments(segments, restRange.start, restRange.end);
@@ -203,6 +222,7 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes, restRange })
     const dayKey = segment.start.toISOString().slice(0, 10);
     const dayType = resolveDayType(segment.start, dayTypeOverride);
     const isDiurnal = isDiurnalSegment(segment);
+    const weekKey = getISOWeek(segment.start);
     const dayTotals = ensureDayTotals(dayKey);
 
     if (!dayOrdinaryBudget.has(dayKey)) {
@@ -210,8 +230,11 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes, restRange })
     }
 
     if (dayType === "ordinario") {
+      const weeklyUsed = weeklyOrdinaryMinutes.get(weekKey) ?? 0;
+      const weeklyRemaining = Math.max(0, WEEKLY_ORDINARY_LIMIT - weeklyUsed);
       const budget = dayOrdinaryBudget.get(dayKey);
-      const usable = Math.min(minutes, budget);
+      const usableWeekly = Math.min(minutes, weeklyRemaining);
+      const usable = Math.min(usableWeekly, budget);
       const remaining = minutes - usable;
 
       if (isDiurnal) {
@@ -231,6 +254,7 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes, restRange })
       }
 
       dayOrdinaryBudget.set(dayKey, Math.max(0, budget - usable));
+      weeklyOrdinaryMinutes.set(weekKey, weeklyUsed + usable);
     } else {
       // Para jornadas dominicales o festivas tratamos todas las horas diurnas como HEDF
       // y las nocturnas como HEN (recargo nocturno festivo/dom.).
@@ -621,6 +645,7 @@ function logManualExamples() {
     : () => {};
 
   const beforeTwentyOne = calculateShift({
+    person: "__manual__-antes-21",
     start: new Date("2024-05-10T18:00:00"),
     end: new Date("2024-05-11T05:00:00"),
     dayTypeOverride: "auto",
@@ -650,6 +675,7 @@ function logManualExamples() {
   groupEnd();
 
   const splitNight = calculateShift({
+    person: "__manual__-descanso",
     start: new Date("2024-03-03T19:00:00"),
     end: new Date("2024-03-04T05:00:00"),
     dayTypeOverride: "auto",
@@ -671,6 +697,41 @@ function logManualExamples() {
   );
   log("Detalle por día (minutos):", splitNight.minutesByDay);
   groupEnd();
+
+  const manualWeekPerson = "__manual__-semanal";
+  const manualWeekDate = new Date("2024-07-11T22:00:00");
+  const manualWeekKey = getISOWeek(manualWeekDate);
+  weeklyOrdinaryMinutesByPerson.set(
+    manualWeekPerson,
+    new Map([[manualWeekKey, 2640]])
+  );
+
+  const exhaustedNight = calculateShift({
+    person: manualWeekPerson,
+    start: new Date("2024-07-11T22:00:00"),
+    end: new Date("2024-07-12T06:00:00"),
+    dayTypeOverride: "auto",
+    restMinutes: 0,
+    restRange: null,
+  });
+
+  const exhaustedDay = calculateShift({
+    person: manualWeekPerson,
+    start: new Date("2024-07-12T08:00:00"),
+    end: new Date("2024-07-12T16:00:00"),
+    dayTypeOverride: "auto",
+    restMinutes: 0,
+    restRange: null,
+  });
+
+  group("Prueba manual: reclasificación semanal tras 44h");
+  log("Noche tras presupuesto semanal (minutos):", exhaustedNight.totals);
+  log("Día tras presupuesto semanal (minutos):", exhaustedDay.totals);
+  groupEnd();
+
+  weeklyOrdinaryMinutesByPerson.delete("__manual__-antes-21");
+  weeklyOrdinaryMinutesByPerson.delete("__manual__-descanso");
+  weeklyOrdinaryMinutesByPerson.delete(manualWeekPerson);
 }
 
 updateFilters();
