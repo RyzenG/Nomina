@@ -21,7 +21,6 @@ form.addEventListener("submit", (event) => {
   const person = form.person.value.trim();
   const startRaw = form.start.value;
   const endRaw = form.end.value;
-  const weekRaw = form.week.value;
   const dayType = form["day-type"].value;
   const restRaw = form.rest.value;
 
@@ -65,8 +64,6 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  const computedWeek = weekRaw || getISOWeek(startDate);
-
   const calculation = calculateShift({
     start: startDate,
     end: endDate,
@@ -74,12 +71,26 @@ form.addEventListener("submit", (event) => {
     restMinutes,
   });
 
+  const entries = Object.entries(calculation.minutesByDay).map(
+    ([dayKey, values]) => {
+      const [year, month, day] = dayKey
+        .split("-")
+        .map((part) => Number.parseInt(part, 10));
+      const dayDate = new Date(year, month - 1, day);
+      return {
+        dayKey,
+        week: getISOWeek(dayDate),
+        values: { ...values },
+      };
+    }
+  );
+
   records.push({
     person,
-    week: computedWeek,
     start: startDate,
     end: endDate,
     minutesByDay: calculation.minutesByDay,
+    entries,
     totals: calculation.totals,
   });
 
@@ -293,6 +304,7 @@ function updateTable() {
   tableBody.innerHTML = "";
 
   const filtered = getFilteredRecords();
+  const weekFilterValue = weekFilter.value;
 
   if (filtered.length === 0) {
     const row = document.createElement("tr");
@@ -306,20 +318,32 @@ function updateTable() {
   }
 
   const grouped = new Map();
+  let hasRows = false;
 
   for (const record of filtered) {
+    const relevantEntries = weekFilterValue
+      ? record.entries.filter((entry) => entry.week === weekFilterValue)
+      : record.entries;
+
+    if (relevantEntries.length === 0) {
+      continue;
+    }
+
     if (!grouped.has(record.person)) {
       grouped.set(record.person, new Map());
     }
-    const weekMap = grouped.get(record.person);
-    if (!weekMap.has(record.week)) {
-      weekMap.set(record.week, new Map());
-    }
-    const dayMap = weekMap.get(record.week);
 
-    for (const [dayKey, values] of Object.entries(record.minutesByDay)) {
-      if (!dayMap.has(dayKey)) {
-        dayMap.set(dayKey, {
+    const weekMap = grouped.get(record.person);
+
+    for (const entry of relevantEntries) {
+      if (!weekMap.has(entry.week)) {
+        weekMap.set(entry.week, new Map());
+      }
+
+      const dayMap = weekMap.get(entry.week);
+
+      if (!dayMap.has(entry.dayKey)) {
+        dayMap.set(entry.dayKey, {
           ordinary: 0,
           rn: 0,
           hed: 0,
@@ -327,7 +351,9 @@ function updateTable() {
           hen: 0,
         });
       }
-      const accumulator = dayMap.get(dayKey);
+
+      const accumulator = dayMap.get(entry.dayKey);
+      const values = entry.values;
       accumulator.ordinary += values.ordinary ?? 0;
       accumulator.rn += values.rn ?? 0;
       accumulator.hed += values.hed ?? 0;
@@ -371,20 +397,39 @@ function updateTable() {
         `;
 
         tableBody.append(row);
+        hasRows = true;
       }
     }
+  }
+
+  if (!hasRows) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 8;
+    cell.className = "empty";
+    cell.textContent = "No hay jornadas para los filtros seleccionados.";
+    row.append(cell);
+    tableBody.append(row);
   }
 }
 
 function updateSummary() {
   const filtered = getFilteredRecords();
+  const weekFilterValue = weekFilter.value;
   const totals = filtered.reduce(
     (acc, record) => {
-      acc.rn += record.totals.rn;
-      acc.hed += record.totals.hed;
-      acc.hedf += record.totals.hedf;
-      acc.hen += record.totals.hen;
-      acc.ordinary += record.totals.ordinary;
+      const relevantEntries = weekFilterValue
+        ? record.entries.filter((entry) => entry.week === weekFilterValue)
+        : record.entries;
+
+      for (const entry of relevantEntries) {
+        const values = entry.values;
+        acc.rn += values.rn ?? 0;
+        acc.hed += values.hed ?? 0;
+        acc.hedf += values.hedf ?? 0;
+        acc.hen += values.hen ?? 0;
+        acc.ordinary += values.ordinary ?? 0;
+      }
       return acc;
     },
     { rn: 0, hed: 0, hedf: 0, hen: 0, ordinary: 0 }
@@ -404,8 +449,8 @@ function getFilteredRecords() {
     if (personFilter.value && record.person !== personFilter.value) {
       return false;
     }
-    if (weekFilter.value && record.week !== weekFilter.value) {
-      return false;
+    if (weekFilter.value) {
+      return record.entries.some((entry) => entry.week === weekFilter.value);
     }
     return true;
   });
@@ -420,9 +465,16 @@ function updateFilters() {
     "Todas las personas"
   );
 
+  const weekSet = new Set();
+  records.forEach((record) => {
+    record.entries.forEach((entry) => {
+      weekSet.add(entry.week);
+    });
+  });
+
   updateSelectOptions(
     weekFilter,
-    Array.from(new Set(records.map((record) => record.week))).sort(),
+    Array.from(weekSet).sort(),
     "Todas las semanas"
   );
 }
@@ -483,3 +535,6 @@ updateSummary();
 // 1. Domingo 19:00 a lunes 05:00 con descanso 0. Las horas de 00:00 a 05:00 deben contarse
 //    como recargo nocturno ordinario del lunes (no como dominicales).
 // 2. Viernes 18:00 a sábado 05:00 para validar horas diurnas ordinarias, RN y HEN.
+// 3. Registrar una jornada que inicie el domingo y termine el lunes (por ejemplo, 22:00 a 06:00)
+//    y verificar que, al filtrar por semana ISO, cada semana muestre únicamente las horas
+//    correspondientes a sus días.
