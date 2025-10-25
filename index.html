@@ -37,10 +37,6 @@
           <label for="rest">Minutos de descanso</label>
           <input type="number" id="rest" name="rest" min="0" max="480" value="0" />
         </div>
-        <div class="field">
-          <label for="rate">Tarifa base por hora (COP)</label>
-          <input type="number" id="rate" name="rate" min="0" step="100" value="10000" required />
-        </div>
         <div class="actions">
           <button type="submit">Añadir jornada</button>
           <button type="button" id="reset">Limpiar listado</button>
@@ -64,12 +60,11 @@
               <th>HEDF (h)</th>
               <th>HEN (h)</th>
               <th>Total (h)</th>
-              <th>Valor (COP)</th>
             </tr>
           </thead>
           <tbody id="results-body">
             <tr>
-              <td colspan="10" class="empty">No hay jornadas registradas.</td>
+              <td colspan="9" class="empty">No hay jornadas registradas.</td>
             </tr>
           </tbody>
         </table>
@@ -77,7 +72,7 @@
     </section>
 
     <aside class="summary" aria-labelledby="summary-title">
-      <h2 id="summary-title">Resumen de totales</h2>
+      <h2 id="summary-title">Resumen de horas acumuladas</h2>
       <dl>
         <div>
           <dt>Total RN</dt>
@@ -96,8 +91,8 @@
           <dd><span id="total-hen">0</span> h</dd>
         </div>
         <div class="highlight">
-          <dt>Valor total pagado</dt>
-          <dd>COP <span id="total-value">0</span></dd>
+          <dt>Total de horas registradas</dt>
+          <dd><span id="total-hours">0</span> h</dd>
         </div>
       </dl>
     </aside>

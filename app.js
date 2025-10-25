@@ -7,7 +7,7 @@ const totalsEls = {
   hed: document.getElementById("total-hed"),
   hedf: document.getElementById("total-hedf"),
   hen: document.getElementById("total-hen"),
-  value: document.getElementById("total-value"),
+  hours: document.getElementById("total-hours"),
 };
 
 const records = [];
@@ -20,7 +20,6 @@ form.addEventListener("submit", (event) => {
   const endRaw = form.end.value;
   const dayType = form["day-type"].value;
   const restRaw = form.rest.value;
-  const rateRaw = form.rate.value;
 
   if (!startRaw || !endRaw) {
     errorsEl.textContent = "Debe indicar las fechas de inicio y fin de la jornada.";
@@ -57,18 +56,11 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  const rate = Number.parseFloat(rateRaw);
-  if (Number.isNaN(rate) || rate <= 0) {
-    errorsEl.textContent = "Ingrese una tarifa base positiva.";
-    return;
-  }
-
   const calculation = calculateShift({
     start: startDate,
     end: endDate,
     dayTypeOverride: dayType,
     restMinutes,
-    rate,
   });
 
   records.push(calculation);
@@ -85,7 +77,7 @@ resetButton.addEventListener("click", () => {
   errorsEl.textContent = "";
 });
 
-function calculateShift({ start, end, dayTypeOverride, restMinutes, rate }) {
+function calculateShift({ start, end, dayTypeOverride, restMinutes }) {
   let segments = splitIntoSegments(start, end);
   if (restMinutes > 0) {
     segments = applyRestToSegments(segments, restMinutes);
@@ -149,30 +141,11 @@ function calculateShift({ start, end, dayTypeOverride, restMinutes, rate }) {
     ordinary: toHours(totals.ordinaryMinutes),
   };
 
-  /*
-    Fórmulas utilizadas (basadas en porcentajes vigentes en Colombia):
-      - Recargo nocturno (RN): 35% adicional sobre la hora ordinaria. Pago = tarifa * 1.35.
-      - Hora extra diurna (HED): 25% adicional. Pago = tarifa * 1.25.
-      - Hora extra dominical/festiva (HEDF): 100% adicional. Pago = tarifa * 2.00.
-      - Hora extra nocturna (HEN): 75% adicional. Pago = tarifa * 1.75.
-      - Horas ordinarias diurnas conservan el 100%: Pago = tarifa * 1.00.
-    Las horas nocturnas dentro del presupuesto ordinario se cuentan como RN (1.35).
-  */
-  const value = roundCurrency(
-    rate * hours.ordinary +
-      rate * hours.rn * 1.35 +
-      rate * hours.hed * 1.25 +
-      rate * hours.hedf * 2.0 +
-      rate * hours.hen * 1.75
-  );
-
   return {
     start,
     end,
     dayType: resolveDayType(start, dayTypeOverride, true),
-    rate,
     hours,
-    value,
   };
 }
 
@@ -281,17 +254,13 @@ function capitalize(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function roundCurrency(value) {
-  return Math.round(value);
-}
-
 function updateTable() {
   tableBody.innerHTML = "";
 
   if (records.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 10;
+    cell.colSpan = 9;
     cell.className = "empty";
     cell.textContent = "No hay jornadas registradas.";
     row.append(cell);
@@ -315,7 +284,6 @@ function updateTable() {
       <td>${record.hours.hedf.toFixed(2)}</td>
       <td>${record.hours.hen.toFixed(2)}</td>
       <td>${totalHours.toFixed(2)}</td>
-      <td>${record.value.toLocaleString("es-CO")}</td>
     `;
 
     tableBody.append(row);
@@ -329,20 +297,23 @@ function updateSummary() {
       acc.hed += record.hours.hed;
       acc.hedf += record.hours.hedf;
       acc.hen += record.hours.hen;
-      acc.value += record.value;
+      acc.ordinary += record.hours.ordinary;
       return acc;
     },
-    { rn: 0, hed: 0, hedf: 0, hen: 0, value: 0 }
+    { rn: 0, hed: 0, hedf: 0, hen: 0, ordinary: 0 }
   );
+
+  const totalHours =
+    totals.rn + totals.hed + totals.hedf + totals.hen + totals.ordinary;
 
   totalsEls.rn.textContent = totals.rn.toFixed(2);
   totalsEls.hed.textContent = totals.hed.toFixed(2);
   totalsEls.hedf.textContent = totals.hedf.toFixed(2);
   totalsEls.hen.textContent = totals.hen.toFixed(2);
-  totalsEls.value.textContent = Math.round(totals.value).toLocaleString("es-CO");
+  totalsEls.hours.textContent = totalHours.toFixed(2);
 }
 
 // Pruebas manuales sugeridas:
-// 1. Domingo 19:00 a lunes 05:00 con tarifa 10000 y descanso 0. Las horas de 00:00 a 05:00 deben contarse
+// 1. Domingo 19:00 a lunes 05:00 con descanso 0. Las horas de 00:00 a 05:00 deben contarse
 //    como recargo nocturno ordinario del lunes (no como dominicales).
-// 2. Viernes 18:00 a sábado 05:00 con tarifa 10000 para validar horas diurnas ordinarias, RN y HEN.
+// 2. Viernes 18:00 a sábado 05:00 para validar horas diurnas ordinarias, RN y HEN.
