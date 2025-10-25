@@ -213,19 +213,34 @@ function applyRestToSegments(segments, restMinutes) {
 }
 
 function nextBoundary(date) {
-  const boundary = new Date(date);
-  const totalMinutes = date.getHours() * 60 + date.getMinutes();
+  const candidates = [];
 
-  if (totalMinutes < 360) {
-    boundary.setHours(6, 0, 0, 0);
-  } else if (totalMinutes < 1260) {
-    boundary.setHours(21, 0, 0, 0);
-  } else {
-    boundary.setDate(boundary.getDate() + 1);
-    boundary.setHours(6, 0, 0, 0);
+  const sameDaySix = new Date(date);
+  sameDaySix.setHours(6, 0, 0, 0);
+  if (sameDaySix > date) {
+    candidates.push(sameDaySix);
   }
 
-  return boundary;
+  const sameDayTwentyOne = new Date(date);
+  sameDayTwentyOne.setHours(21, 0, 0, 0);
+  if (sameDayTwentyOne > date) {
+    candidates.push(sameDayTwentyOne);
+  }
+
+  const midnight = new Date(date);
+  midnight.setHours(24, 0, 0, 0);
+  if (midnight > date) {
+    candidates.push(midnight);
+  }
+
+  const nextDaySix = new Date(midnight);
+  nextDaySix.setHours(6, 0, 0, 0);
+  if (nextDaySix > date) {
+    candidates.push(nextDaySix);
+  }
+
+  candidates.sort((a, b) => a - b);
+  return candidates[0];
 }
 
 function resolveDayType(date, override, labelMode = false) {
@@ -328,5 +343,6 @@ function updateSummary() {
 }
 
 // Pruebas manuales sugeridas:
-// 1. Domingo 19:00 a lunes 05:00 con tarifa 10000 y descanso 0 para comprobar separación nocturna dominical/ordinaria.
+// 1. Domingo 19:00 a lunes 05:00 con tarifa 10000 y descanso 0. Las horas de 00:00 a 05:00 deben contarse
+//    como recargo nocturno ordinario del lunes (no como dominicales).
 // 2. Viernes 18:00 a sábado 05:00 con tarifa 10000 para validar horas diurnas ordinarias, RN y HEN.
