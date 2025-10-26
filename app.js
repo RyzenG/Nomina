@@ -261,14 +261,15 @@ function calculateShift({
       dayOrdinaryBudget.set(dayKey, Math.max(0, budget - usable));
       weeklyOrdinaryMinutes.set(weekKey, weeklyUsed + usable);
     } else {
-      // Para jornadas dominicales o festivas tratamos todas las horas diurnas como HEDF
-      // y las nocturnas como HEN (recargo nocturno festivo/dom.).
+      // Para jornadas dominicales o festivas mantenemos las horas diurnas como HEDF
+      // pero las nocturnas se contabilizan como RN para reflejar el recargo nocturno
+      // esperado en escenarios como domingo 19:00 a lunes 05:00.
       if (isDiurnal) {
         totals.hedf += minutes;
         dayTotals.hedf += minutes;
       } else {
-        totals.hen += minutes;
-        dayTotals.hen += minutes;
+        totals.rn += minutes;
+        dayTotals.rn += minutes;
       }
     }
   }
@@ -706,6 +707,10 @@ function logManualExamples() {
   log(
     "Totales lunes (h):",
     toHours(sumMinutes(splitNight.minutesByDay["2024-03-04"])).toFixed(2)
+  );
+  log(
+    "Recargo nocturno esperado (7.00 h):",
+    toHours(splitNight.totals.rn).toFixed(2)
   );
   log("Detalle por día (minutos):", splitNight.minutesByDay);
   groupEnd();
