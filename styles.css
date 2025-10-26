@@ -37,9 +37,9 @@ header h1 {
   margin-bottom: 0.25rem;
 }
 
-main {
+.app-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
   gap: clamp(1rem, 2vw, 2.5rem);
   align-items: start;
 }
@@ -71,27 +71,32 @@ aside {
   padding: 0 0.25rem;
 }
 
-.schedule .day-row {
+.day-grid {
   display: grid;
-  gap: clamp(0.5rem, 1.5vw, 1rem);
-  grid-template-columns: minmax(7rem, 0.6fr) repeat(3, minmax(0, 1fr));
-  align-items: start;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.day-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: light-dark(#f8faff, #1a1a1a);
 }
 
 .schedule .day-name {
-  font-weight: 600;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .schedule .field-group {
   display: grid;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  font-size: 0.95rem;
   min-width: 0;
-}
-
-.schedule .field-group input,
-.schedule .field-group select {
-  width: 100%;
 }
 
 .schedule .label-text {
@@ -120,6 +125,8 @@ button {
   border-radius: 0.5rem;
   border: 1px solid var(--border);
   padding: 0.5rem 0.75rem;
+  background: light-dark(#fff, #111);
+  color: inherit;
 }
 
 input,
@@ -138,6 +145,7 @@ button:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 button[type="submit"] {
@@ -161,6 +169,17 @@ button:hover {
   margin: 0;
   color: var(--danger);
   min-height: 1.5rem;
+}
+
+.side-column {
+  display: grid;
+  gap: clamp(1rem, 2vw, 2.5rem);
+}
+
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .table-wrapper {
@@ -239,17 +258,12 @@ tbody tr:nth-child(even) td {
     padding: 1rem;
   }
 
-  main {
+  .app-layout {
     grid-template-columns: 1fr;
   }
 
-  .schedule .day-row {
+  .day-grid {
     grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .schedule .day-name {
-    margin-bottom: 0.25rem;
   }
 
   table th,
