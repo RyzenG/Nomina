@@ -2,7 +2,6 @@ const form = document.getElementById("shift-form");
 const errorsEl = document.getElementById("form-errors");
 const tableBody = document.getElementById("results-body");
 const resetButton = document.getElementById("reset");
-const personFilter = document.getElementById("person-filter");
 const weekFilter = document.getElementById("week-filter");
 const totalsEls = {
   rn: document.getElementById("total-rn"),
@@ -13,147 +12,94 @@ const totalsEls = {
 };
 
 const records = [];
-const weeklyOrdinaryMinutesByPerson = new Map();
+const weeklyOrdinaryMinutes = new Map();
+
+const DAYS = [
+  { key: "sunday", label: "Domingo" },
+  { key: "monday", label: "Lunes" },
+  { key: "tuesday", label: "Martes" },
+  { key: "wednesday", label: "Miércoles" },
+  { key: "thursday", label: "Jueves" },
+  { key: "friday", label: "Viernes" },
+  { key: "saturday", label: "Sábado" },
+];
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   errorsEl.textContent = "";
 
-  const person = form.person.value.trim();
-  const startRaw = form.start.value;
-  const endRaw = form.end.value;
-  const dayType = form["day-type"].value;
-  const restRaw = form.rest.value;
-  const weekOverrideRaw = form.week.value;
-  const restStartRaw = form["rest-start"].value;
-  const restEndRaw = form["rest-end"].value;
+  const weekOverride = form.week.value ? form.week.value.trim() : null;
+  const scheduleEntries = [];
 
-  if (!person) {
-    errorsEl.textContent = "Debe indicar la persona asociada a la jornada.";
-    return;
-  }
+  for (const day of DAYS) {
+    const startField = form[`day-${day.key}-start`];
+    const endField = form[`day-${day.key}-end`];
+    const typeField = form[`day-${day.key}-type`];
 
-  if (!startRaw || !endRaw) {
-    errorsEl.textContent = "Debe indicar las fechas de inicio y fin de la jornada.";
-    return;
-  }
+    const startRaw = startField.value;
+    const endRaw = endField.value;
+    const dayType = typeField.value;
 
-  const startDate = new Date(startRaw);
-  const endDate = new Date(endRaw);
+    if (!startRaw && !endRaw) {
+      continue;
+    }
 
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    errorsEl.textContent = "Las fechas proporcionadas no son válidas.";
-    return;
-  }
-
-  if (endDate <= startDate) {
-    errorsEl.textContent = "La hora de fin debe ser posterior a la de inicio.";
-    return;
-  }
-
-  const restMinutes = Number.parseInt(restRaw || "0", 10);
-  if (Number.isNaN(restMinutes) || restMinutes < 0) {
-    errorsEl.textContent = "Los minutos de descanso deben ser un número positivo.";
-    return;
-  }
-
-  const totalMinutes = (endDate - startDate) / 60000;
-  if (restMinutes >= totalMinutes) {
-    errorsEl.textContent = "El descanso no puede ser igual o mayor al tiempo total trabajado.";
-    return;
-  }
-
-  if (restMinutes > 240) {
-    errorsEl.textContent = "El descanso no debería exceder las 4 horas (240 minutos).";
-    return;
-  }
-
-  let restStartDate = null;
-  let restEndDate = null;
-
-  if (restMinutes > 0) {
-    if (!restStartRaw) {
-      errorsEl.textContent = "Debe indicar la hora de inicio del descanso.";
+    if (!startRaw || !endRaw) {
+      errorsEl.textContent = `Debe indicar la hora de inicio y fin para ${day.label}.`;
       return;
     }
 
-    restStartDate = new Date(restStartRaw);
-    if (Number.isNaN(restStartDate.getTime())) {
-      errorsEl.textContent = "La hora de inicio del descanso no es válida.";
+    const startDate = new Date(startRaw);
+    const endDate = new Date(endRaw);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      errorsEl.textContent = `Las fechas indicadas para ${day.label} no son válidas.`;
       return;
     }
 
-    if (restStartDate < startDate || restStartDate >= endDate) {
-      errorsEl.textContent = "El inicio del descanso debe estar dentro de la jornada.";
+    if (endDate <= startDate) {
+      errorsEl.textContent = `La hora de fin debe ser posterior a la de inicio en ${day.label}.`;
       return;
     }
 
-    if (restEndRaw) {
-      restEndDate = new Date(restEndRaw);
-      if (Number.isNaN(restEndDate.getTime())) {
-        errorsEl.textContent = "La hora de fin del descanso no es válida.";
-        return;
+    scheduleEntries.push({ start: startDate, end: endDate, dayType });
+  }
+
+  if (scheduleEntries.length === 0) {
+    errorsEl.textContent = "Registre al menos un día con horario válido.";
+    return;
+  }
+
+  for (const entry of scheduleEntries) {
+    const calculation = calculateShift({
+      start: entry.start,
+      end: entry.end,
+      dayTypeOverride: entry.dayType,
+      weekOverride,
+    });
+
+    const entries = Object.entries(calculation.minutesByDay).map(
+      ([dayKey, values]) => {
+        const [year, month, day] = dayKey
+          .split("-")
+          .map((part) => Number.parseInt(part, 10));
+        const dayDate = new Date(year, month - 1, day);
+        return {
+          dayKey,
+          week: resolveWeekKey(dayDate, weekOverride),
+          values: { ...values },
+        };
       }
-    } else {
-      restEndDate = new Date(restStartDate.getTime() + restMinutes * 60000);
-    }
+    );
 
-    if (restEndDate <= restStartDate) {
-      errorsEl.textContent = "El fin del descanso debe ser posterior al inicio.";
-      return;
-    }
-
-    if (restEndDate > endDate) {
-      errorsEl.textContent = "El descanso debe finalizar antes de terminar la jornada.";
-      return;
-    }
-
-    const restDuration = differenceInMinutes(restStartDate, restEndDate);
-    if (Math.abs(restDuration - restMinutes) > 1e-6) {
-      errorsEl.textContent = "La duración del descanso no coincide con los minutos indicados.";
-      return;
-    }
-  } else if (restStartRaw || restEndRaw) {
-    errorsEl.textContent = "Si no se descansa, no indique horas de inicio o fin de descanso.";
-    return;
+    records.push({
+      start: entry.start,
+      end: entry.end,
+      minutesByDay: calculation.minutesByDay,
+      entries,
+      totals: calculation.totals,
+    });
   }
-
-  const restRange = restMinutes > 0 ? { start: restStartDate, end: restEndDate } : null;
-
-  const weekOverride = weekOverrideRaw ? weekOverrideRaw.trim() : null;
-
-  const calculation = calculateShift({
-    person,
-    start: startDate,
-    end: endDate,
-    dayTypeOverride: dayType,
-    restMinutes,
-    restRange,
-    weekOverride,
-  });
-
-  const entries = Object.entries(calculation.minutesByDay).map(
-    ([dayKey, values]) => {
-      const [year, month, day] = dayKey
-        .split("-")
-        .map((part) => Number.parseInt(part, 10));
-      const dayDate = new Date(year, month - 1, day);
-      return {
-        dayKey,
-        week: resolveWeekKey(dayDate, weekOverride),
-        values: { ...values },
-      };
-    }
-  );
-
-  records.push({
-    person,
-    start: startDate,
-    end: endDate,
-    minutesByDay: calculation.minutesByDay,
-    entries,
-    totals: calculation.totals,
-  });
 
   updateFilters();
   updateTable();
@@ -163,7 +109,7 @@ form.addEventListener("submit", (event) => {
 
 resetButton.addEventListener("click", () => {
   records.length = 0;
-  weeklyOrdinaryMinutesByPerson.clear();
+  weeklyOrdinaryMinutes.clear();
   updateFilters();
   updateTable();
   updateSummary();
@@ -171,31 +117,18 @@ resetButton.addEventListener("click", () => {
   errorsEl.textContent = "";
 });
 
-personFilter.addEventListener("change", handleFilterChange);
 weekFilter.addEventListener("change", handleFilterChange);
 
 function calculateShift({
-  person,
   start,
   end,
   dayTypeOverride,
-  restMinutes,
-  restRange,
   weekOverride = null,
 }) {
-  const personKey = person || "__anon__";
-
-  if (!weeklyOrdinaryMinutesByPerson.has(personKey)) {
-    weeklyOrdinaryMinutesByPerson.set(personKey, new Map());
-  }
-
-  const weeklyOrdinaryMinutes = weeklyOrdinaryMinutesByPerson.get(personKey);
   const WEEKLY_ORDINARY_LIMIT = 2640; // 44 horas semanales.
 
   let segments = splitIntoSegments(start, end);
-  if (restMinutes > 0 && restRange) {
-    segments = removeRestFromSegments(segments, restRange.start, restRange.end);
-  }
+  segments = applyAutomaticRest(segments);
 
   const dayOrdinaryBudget = new Map();
   const totals = {
@@ -301,6 +234,36 @@ function splitIntoSegments(start, end) {
   return segments;
 }
 
+function applyAutomaticRest(segments) {
+  if (segments.length === 0) {
+    return segments;
+  }
+
+  const totalMinutes = segments.reduce(
+    (acc, segment) => acc + differenceInMinutes(segment.start, segment.end),
+    0
+  );
+
+  if (totalMinutes < 60) {
+    return segments;
+  }
+
+  const shiftStartMs = segments[0].start.getTime();
+  const shiftEndMs = segments[segments.length - 1].end.getTime();
+  const shiftDurationMs = shiftEndMs - shiftStartMs;
+  const restDurationMs = 60 * 60000;
+
+  let restStartMs = shiftStartMs + (shiftDurationMs - restDurationMs) / 2;
+  restStartMs = Math.max(shiftStartMs, Math.min(restStartMs, shiftEndMs - restDurationMs));
+  const restEndMs = restStartMs + restDurationMs;
+
+  return removeRestFromSegments(
+    segments,
+    new Date(restStartMs),
+    new Date(restEndMs)
+  );
+}
+
 function removeRestFromSegments(segments, restStart, restEnd) {
   if (!restStart || !restEnd) {
     return segments;
@@ -397,13 +360,6 @@ function differenceInMinutes(start, end) {
   return (end - start) / 60000;
 }
 
-function sumMinutes(record) {
-  return Object.values(record || {}).reduce(
-    (acc, value) => acc + (value ?? 0),
-    0
-  );
-}
-
 function toHours(minutes) {
   return Math.round((minutes / 60) * 100) / 100;
 }
@@ -421,7 +377,7 @@ function updateTable() {
   if (filtered.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 8;
+    cell.colSpan = 7;
     cell.className = "empty";
     cell.textContent = "No hay jornadas para los filtros seleccionados.";
     row.append(cell);
@@ -437,22 +393,12 @@ function updateTable() {
       ? record.entries.filter((entry) => entry.week === weekFilterValue)
       : record.entries;
 
-    if (relevantEntries.length === 0) {
-      continue;
-    }
-
-    if (!grouped.has(record.person)) {
-      grouped.set(record.person, new Map());
-    }
-
-    const weekMap = grouped.get(record.person);
-
     for (const entry of relevantEntries) {
-      if (!weekMap.has(entry.week)) {
-        weekMap.set(entry.week, new Map());
+      if (!grouped.has(entry.week)) {
+        grouped.set(entry.week, new Map());
       }
 
-      const dayMap = weekMap.get(entry.week);
+      const dayMap = grouped.get(entry.week);
 
       if (!dayMap.has(entry.dayKey)) {
         dayMap.set(entry.dayKey, {
@@ -474,50 +420,42 @@ function updateTable() {
     }
   }
 
-  const sortedPersons = Array.from(grouped.keys()).sort((a, b) =>
-    a.localeCompare(b, "es", { sensitivity: "base" })
-  );
+  const sortedWeeks = Array.from(grouped.keys()).sort();
 
-  for (const person of sortedPersons) {
-    const weeks = grouped.get(person);
-    const sortedWeeks = Array.from(weeks.keys()).sort();
+  for (const week of sortedWeeks) {
+    const days = grouped.get(week);
+    const sortedDays = Array.from(days.keys()).sort();
 
-    for (const week of sortedWeeks) {
-      const days = weeks.get(week);
-      const sortedDays = Array.from(days.keys()).sort();
+    for (const dayKey of sortedDays) {
+      const values = days.get(dayKey);
+      const rnHours = toHours(values.rn);
+      const hedHours = toHours(values.hed);
+      const hedfHours = toHours(values.hedf);
+      const henHours = toHours(values.hen);
+      const totalHours = toHours(
+        values.ordinary + values.rn + values.hed + values.hedf + values.hen
+      );
 
-      for (const dayKey of sortedDays) {
-        const values = days.get(dayKey);
-        const rnHours = toHours(values.rn);
-        const hedHours = toHours(values.hed);
-        const hedfHours = toHours(values.hedf);
-        const henHours = toHours(values.hen);
-        const totalHours = toHours(
-          values.ordinary + values.rn + values.hed + values.hedf + values.hen
-        );
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${week}</td>
+        <td>${formatDayLabel(dayKey)}</td>
+        <td>${rnHours.toFixed(2)}</td>
+        <td>${hedHours.toFixed(2)}</td>
+        <td>${hedfHours.toFixed(2)}</td>
+        <td>${henHours.toFixed(2)}</td>
+        <td>${totalHours.toFixed(2)}</td>
+      `;
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${person}</td>
-          <td>${week}</td>
-          <td>${formatDayLabel(dayKey)}</td>
-          <td>${rnHours.toFixed(2)}</td>
-          <td>${hedHours.toFixed(2)}</td>
-          <td>${hedfHours.toFixed(2)}</td>
-          <td>${henHours.toFixed(2)}</td>
-          <td>${totalHours.toFixed(2)}</td>
-        `;
-
-        tableBody.append(row);
-        hasRows = true;
-      }
+      tableBody.append(row);
+      hasRows = true;
     }
   }
 
   if (!hasRows) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 8;
+    cell.colSpan = 7;
     cell.className = "empty";
     cell.textContent = "No hay jornadas para los filtros seleccionados.";
     row.append(cell);
@@ -558,9 +496,6 @@ function updateSummary() {
 
 function getFilteredRecords() {
   return records.filter((record) => {
-    if (personFilter.value && record.person !== personFilter.value) {
-      return false;
-    }
     if (weekFilter.value) {
       return record.entries.some((entry) => entry.week === weekFilter.value);
     }
@@ -569,14 +504,6 @@ function getFilteredRecords() {
 }
 
 function updateFilters() {
-  updateSelectOptions(
-    personFilter,
-    Array.from(new Set(records.map((record) => record.person))).sort((a, b) =>
-      a.localeCompare(b, "es", { sensitivity: "base" })
-    ),
-    "Todas las personas"
-  );
-
   const weekSet = new Set();
   records.forEach((record) => {
     record.entries.forEach((entry) => {
@@ -657,98 +584,50 @@ function logManualExamples() {
     ? console.groupEnd.bind(console)
     : () => {};
 
-  const beforeTwentyOne = calculateShift({
-    person: "__manual__-antes-21",
-    start: new Date("2024-05-10T18:00:00"),
-    end: new Date("2024-05-11T05:00:00"),
-    dayTypeOverride: "auto",
-    restMinutes: 30,
-    restRange: {
-      start: new Date("2024-05-10T20:00:00"),
-      end: new Date("2024-05-10T20:30:00"),
-    },
-  });
+  const originalState = new Map(weeklyOrdinaryMinutes);
 
-  group("Prueba manual: descanso antes de 21:00");
-  log("Totales (minutos):", beforeTwentyOne.totals);
-  log(
-    "Horas nocturnas esperadas (8.00 h):",
-    toHours(beforeTwentyOne.totals.rn + beforeTwentyOne.totals.hen).toFixed(2)
-  );
-  log(
-    "Horas totales esperadas (10.50 h):",
-    toHours(
-      beforeTwentyOne.totals.ordinary +
-        beforeTwentyOne.totals.rn +
-        beforeTwentyOne.totals.hed +
-        beforeTwentyOne.totals.hedf +
-        beforeTwentyOne.totals.hen
-    ).toFixed(2)
-  );
-  groupEnd();
+  try {
+    weeklyOrdinaryMinutes.clear();
 
-  const splitNight = calculateShift({
-    person: "__manual__-descanso",
-    start: new Date("2024-03-03T19:00:00"),
-    end: new Date("2024-03-04T05:00:00"),
-    dayTypeOverride: "auto",
-    restMinutes: 60,
-    restRange: {
-      start: new Date("2024-03-03T22:00:00"),
-      end: new Date("2024-03-03T23:00:00"),
-    },
-  });
+    const sundayNight = calculateShift({
+      start: new Date("2024-03-03T19:00:00"),
+      end: new Date("2024-03-04T05:00:00"),
+      dayTypeOverride: "auto",
+    });
 
-  group("Prueba manual: totales diarios con descanso");
-  log(
-    "Totales domingo (h):",
-    toHours(sumMinutes(splitNight.minutesByDay["2024-03-03"])).toFixed(2)
-  );
-  log(
-    "Totales lunes (h):",
-    toHours(sumMinutes(splitNight.minutesByDay["2024-03-04"])).toFixed(2)
-  );
-  log(
-    "Recargo nocturno esperado (7.00 h):",
-    toHours(splitNight.totals.rn).toFixed(2)
-  );
-  log("Detalle por día (minutos):", splitNight.minutesByDay);
-  groupEnd();
+    group("Prueba manual: descanso automático en jornada dominical");
+    log(
+      "Horas registradas tras descontar la hora de comida (esperado 9.00 h):",
+      toHours(
+        sundayNight.totals.ordinary +
+          sundayNight.totals.rn +
+          sundayNight.totals.hed +
+          sundayNight.totals.hedf +
+          sundayNight.totals.hen
+      ).toFixed(2)
+    );
+    log("Detalle por día (minutos):", sundayNight.minutesByDay);
+    groupEnd();
 
-  const manualWeekPerson = "__manual__-semanal";
-  const manualWeekDate = new Date("2024-07-11T22:00:00");
-  const manualWeekKey = getISOWeek(manualWeekDate);
-  weeklyOrdinaryMinutesByPerson.set(
-    manualWeekPerson,
-    new Map([[manualWeekKey, 2640]])
-  );
+    const manualWeekKey = getISOWeek(new Date("2024-07-08T08:00:00"));
+    weeklyOrdinaryMinutes.set(manualWeekKey, 2640);
 
-  const exhaustedNight = calculateShift({
-    person: manualWeekPerson,
-    start: new Date("2024-07-11T22:00:00"),
-    end: new Date("2024-07-12T06:00:00"),
-    dayTypeOverride: "auto",
-    restMinutes: 0,
-    restRange: null,
-  });
+    const overtimeNight = calculateShift({
+      start: new Date("2024-07-08T22:00:00"),
+      end: new Date("2024-07-09T06:00:00"),
+      dayTypeOverride: "auto",
+      weekOverride: manualWeekKey,
+    });
 
-  const exhaustedDay = calculateShift({
-    person: manualWeekPerson,
-    start: new Date("2024-07-12T08:00:00"),
-    end: new Date("2024-07-12T16:00:00"),
-    dayTypeOverride: "auto",
-    restMinutes: 0,
-    restRange: null,
-  });
-
-  group("Prueba manual: reclasificación semanal tras 44h");
-  log("Noche tras presupuesto semanal (minutos):", exhaustedNight.totals);
-  log("Día tras presupuesto semanal (minutos):", exhaustedDay.totals);
-  groupEnd();
-
-  weeklyOrdinaryMinutesByPerson.delete("__manual__-antes-21");
-  weeklyOrdinaryMinutesByPerson.delete("__manual__-descanso");
-  weeklyOrdinaryMinutesByPerson.delete(manualWeekPerson);
+    group("Prueba manual: reclasificación semanal tras 44h");
+    log("Totales (minutos):", overtimeNight.totals);
+    groupEnd();
+  } finally {
+    weeklyOrdinaryMinutes.clear();
+    for (const [key, value] of originalState.entries()) {
+      weeklyOrdinaryMinutes.set(key, value);
+    }
+  }
 }
 
 updateFilters();
@@ -758,11 +637,6 @@ updateSummary();
 logManualExamples();
 
 // Pruebas manuales sugeridas:
-// 1. Domingo 19:00 a lunes 05:00 con descanso de 60 minutos entre 22:00 y 23:00.
-//    Confirmar que el descanso solo afecta el tramo indicado y que los totales diarios
-//    coinciden con las expectativas.
-// 2. Viernes 18:00 a sábado 05:00 con descanso de 30 minutos antes de las 21:00 para
-//    verificar que las horas nocturnas posteriores se mantienen.
-// 3. Registrar una jornada que inicie el domingo y termine el lunes (por ejemplo, 22:00 a 06:00)
-//    y verificar que, al filtrar por semana ISO, cada semana muestre únicamente las horas
-//    correspondientes a sus días.
+// 1. Domingo 19:00 a lunes 05:00 y validar que el sistema descuenta automáticamente 60 minutos.
+// 2. Registrar varios días en una misma semana y filtrar por semana para comprobar los totales.
+// 3. Completar una semana con más de 44 horas ordinarias y confirmar la reclasificación automática.
