@@ -185,10 +185,35 @@ function calculateShift({
     let budget = dayOrdinaryBudget.get(dayKey);
 
     if (dayType === "ordinario") {
-      const weeklyUsed = weeklyOrdinaryMinutes.get(weekKey) ?? 0;
-      const weeklyRemaining = Math.max(0, WEEKLY_ORDINARY_LIMIT - weeklyUsed);
-      const usableWeekly = Math.min(minutes, weeklyRemaining);
-      const usable = Math.min(usableWeekly, budget);
+      let weeklyUsed = weeklyOrdinaryMinutes.get(weekKey) ?? 0;
+      let weeklyRemaining = Math.max(0, WEEKLY_ORDINARY_LIMIT - weeklyUsed);
+      let usableWeekly = Math.min(minutes, weeklyRemaining);
+      let usable = Math.min(usableWeekly, budget);
+
+      if (!isDiurnal && usable < minutes) {
+        const reclaimNeeded = minutes - usable;
+        const reclaimable = Math.min(
+          dayTotals.ordinary,
+          reclaimNeeded,
+          weeklyUsed
+        );
+
+        if (reclaimable > 0) {
+          dayTotals.ordinary -= reclaimable;
+          dayTotals.hed += reclaimable;
+          totals.ordinary -= reclaimable;
+          totals.hed += reclaimable;
+
+          budget += reclaimable;
+          weeklyUsed -= reclaimable;
+          weeklyOrdinaryMinutes.set(weekKey, weeklyUsed);
+
+          weeklyRemaining = Math.max(0, WEEKLY_ORDINARY_LIMIT - weeklyUsed);
+          usableWeekly = Math.min(minutes, weeklyRemaining);
+          usable = Math.min(usableWeekly, budget);
+        }
+      }
+
       const remaining = minutes - usable;
 
       if (isDiurnal) {
