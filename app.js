@@ -24,6 +24,7 @@ form.addEventListener("submit", (event) => {
   const endRaw = form.end.value;
   const dayType = form["day-type"].value;
   const restRaw = form.rest.value;
+  const weekOverrideRaw = form.week.value;
   const restStartRaw = form["rest-start"].value;
   const restEndRaw = form["rest-end"].value;
 
@@ -119,6 +120,8 @@ form.addEventListener("submit", (event) => {
 
   const restRange = restMinutes > 0 ? { start: restStartDate, end: restEndDate } : null;
 
+  const weekOverride = weekOverrideRaw ? weekOverrideRaw.trim() : null;
+
   const calculation = calculateShift({
     person,
     start: startDate,
@@ -126,6 +129,7 @@ form.addEventListener("submit", (event) => {
     dayTypeOverride: dayType,
     restMinutes,
     restRange,
+    weekOverride,
   });
 
   const entries = Object.entries(calculation.minutesByDay).map(
@@ -136,7 +140,7 @@ form.addEventListener("submit", (event) => {
       const dayDate = new Date(year, month - 1, day);
       return {
         dayKey,
-        week: getISOWeek(dayDate),
+        week: resolveWeekKey(dayDate, weekOverride),
         values: { ...values },
       };
     }
@@ -177,6 +181,7 @@ function calculateShift({
   dayTypeOverride,
   restMinutes,
   restRange,
+  weekOverride = null,
 }) {
   const personKey = person || "__anon__";
 
@@ -222,7 +227,7 @@ function calculateShift({
     const dayKey = segment.start.toISOString().slice(0, 10);
     const dayType = resolveDayType(segment.start, dayTypeOverride);
     const isDiurnal = isDiurnalSegment(segment);
-    const weekKey = getISOWeek(segment.start);
+    const weekKey = resolveWeekKey(segment.start, weekOverride);
     const dayTotals = ensureDayTotals(dayKey);
 
     if (!dayOrdinaryBudget.has(dayKey)) {
@@ -611,6 +616,13 @@ function updateSelectOptions(selectEl, values, defaultLabel) {
 function handleFilterChange() {
   updateTable();
   updateSummary();
+}
+
+function resolveWeekKey(date, override) {
+  if (override) {
+    return override;
+  }
+  return getISOWeek(date);
 }
 
 function getISOWeek(date) {
