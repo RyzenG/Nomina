@@ -157,10 +157,10 @@ function calculateShift({
     const minutes = differenceInMinutes(segment.start, segment.end);
     if (minutes <= 0) continue;
 
-    const dayKey = segment.start.toISOString().slice(0, 10);
+    const { dayKey, dayDate } = getLocalDayKey(segment.start);
     const dayType = resolveDayType(segment.start, dayTypeOverride);
     const isDiurnal = isDiurnalSegment(segment);
-    const weekKey = resolveWeekKey(segment.start, weekOverride);
+    const weekKey = resolveWeekKey(dayDate, weekOverride);
     const dayTotals = ensureDayTotals(dayKey);
 
     if (!dayOrdinaryBudget.has(dayKey)) {
@@ -551,6 +551,19 @@ function resolveWeekKey(date, override) {
     return override;
   }
   return getISOWeek(date);
+}
+
+function getLocalDayKey(date) {
+  const year = date.getFullYear();
+  const monthIndex = date.getMonth();
+  const dayNumber = date.getDate();
+  const month = String(monthIndex + 1).padStart(2, "0");
+  const day = String(dayNumber).padStart(2, "0");
+
+  return {
+    dayKey: `${year}-${month}-${day}`,
+    dayDate: new Date(year, monthIndex, dayNumber),
+  };
 }
 
 function getISOWeek(date) {
