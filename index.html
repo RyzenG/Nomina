@@ -21,6 +21,14 @@
           <input type="week" id="week" name="week" />
           <p class="hint">Si se omite, se calculará la semana ISO a partir de cada día registrado.</p>
         </div>
+        <div class="field">
+          <label for="shift-span">Modo de jornada</label>
+          <select id="shift-span" name="shift-span">
+            <option value="day" selected>Jornada diurna (mismo día)</option>
+            <option value="pm">Jornada PM (termina al día siguiente)</option>
+          </select>
+          <p class="hint">La jornada PM ajusta automáticamente la fecha de fin al día siguiente.</p>
+        </div>
         <fieldset class="schedule">
           <legend>Horario semanal</legend>
           <p class="hint">
@@ -236,6 +244,12 @@
             <dd><span id="total-hours">0</span> h</dd>
           </div>
         </dl>
+        <div class="weekly-breakdown">
+          <h3>Horas por semana</h3>
+          <ul id="weekly-hours-list">
+            <li class="empty">Sin horas registradas para el filtro actual.</li>
+          </ul>
+        </div>
       </aside>
     </div>
   </main>
