@@ -12,7 +12,7 @@
     <p>Registre múltiples jornadas laborales para obtener el desglose de horas con recargo nocturno, extras diurnas, extras dominicales/festivas y extras nocturnas.</p>
   </header>
 
-  <main>
+  <main class="app-layout">
     <section class="form-section" aria-labelledby="form-title">
       <h2 id="form-title">Registrar jornada</h2>
       <form id="shift-form" novalidate>
@@ -27,145 +27,147 @@
             Complete los días que correspondan. Puede dejar en blanco aquellos en los que
             no se trabaja.
           </p>
-          <div class="day-row">
-            <span class="day-name">Domingo</span>
-            <label class="field-group" for="day-sunday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-sunday-start" name="day-sunday-start" />
-            </label>
-            <label class="field-group" for="day-sunday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-sunday-end" name="day-sunday-end" />
-            </label>
-            <label class="field-group" for="day-sunday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-sunday-type" name="day-sunday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Lunes</span>
-            <label class="field-group" for="day-monday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-monday-start" name="day-monday-start" />
-            </label>
-            <label class="field-group" for="day-monday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-monday-end" name="day-monday-end" />
-            </label>
-            <label class="field-group" for="day-monday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-monday-type" name="day-monday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Martes</span>
-            <label class="field-group" for="day-tuesday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-tuesday-start" name="day-tuesday-start" />
-            </label>
-            <label class="field-group" for="day-tuesday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-tuesday-end" name="day-tuesday-end" />
-            </label>
-            <label class="field-group" for="day-tuesday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-tuesday-type" name="day-tuesday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Miércoles</span>
-            <label class="field-group" for="day-wednesday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-wednesday-start" name="day-wednesday-start" />
-            </label>
-            <label class="field-group" for="day-wednesday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-wednesday-end" name="day-wednesday-end" />
-            </label>
-            <label class="field-group" for="day-wednesday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-wednesday-type" name="day-wednesday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Jueves</span>
-            <label class="field-group" for="day-thursday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-thursday-start" name="day-thursday-start" />
-            </label>
-            <label class="field-group" for="day-thursday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-thursday-end" name="day-thursday-end" />
-            </label>
-            <label class="field-group" for="day-thursday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-thursday-type" name="day-thursday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Viernes</span>
-            <label class="field-group" for="day-friday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-friday-start" name="day-friday-start" />
-            </label>
-            <label class="field-group" for="day-friday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-friday-end" name="day-friday-end" />
-            </label>
-            <label class="field-group" for="day-friday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-friday-type" name="day-friday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
-          </div>
-          <div class="day-row">
-            <span class="day-name">Sábado</span>
-            <label class="field-group" for="day-saturday-start">
-              <span class="label-text">Inicio</span>
-              <input type="datetime-local" id="day-saturday-start" name="day-saturday-start" />
-            </label>
-            <label class="field-group" for="day-saturday-end">
-              <span class="label-text">Fin</span>
-              <input type="datetime-local" id="day-saturday-end" name="day-saturday-end" />
-            </label>
-            <label class="field-group" for="day-saturday-type">
-              <span class="label-text">Tipo de día</span>
-              <select id="day-saturday-type" name="day-saturday-type">
-                <option value="auto" selected>Automático</option>
-                <option value="ordinario">Ordinario</option>
-                <option value="dominical">Dominical</option>
-                <option value="festivo">Festivo</option>
-              </select>
-            </label>
+          <div class="day-grid">
+            <div class="day-card">
+              <h3 class="day-name">Domingo</h3>
+              <label class="field-group" for="day-sunday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-sunday-start" name="day-sunday-start" />
+              </label>
+              <label class="field-group" for="day-sunday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-sunday-end" name="day-sunday-end" />
+              </label>
+              <label class="field-group" for="day-sunday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-sunday-type" name="day-sunday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Lunes</h3>
+              <label class="field-group" for="day-monday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-monday-start" name="day-monday-start" />
+              </label>
+              <label class="field-group" for="day-monday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-monday-end" name="day-monday-end" />
+              </label>
+              <label class="field-group" for="day-monday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-monday-type" name="day-monday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Martes</h3>
+              <label class="field-group" for="day-tuesday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-tuesday-start" name="day-tuesday-start" />
+              </label>
+              <label class="field-group" for="day-tuesday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-tuesday-end" name="day-tuesday-end" />
+              </label>
+              <label class="field-group" for="day-tuesday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-tuesday-type" name="day-tuesday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Miércoles</h3>
+              <label class="field-group" for="day-wednesday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-wednesday-start" name="day-wednesday-start" />
+              </label>
+              <label class="field-group" for="day-wednesday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-wednesday-end" name="day-wednesday-end" />
+              </label>
+              <label class="field-group" for="day-wednesday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-wednesday-type" name="day-wednesday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Jueves</h3>
+              <label class="field-group" for="day-thursday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-thursday-start" name="day-thursday-start" />
+              </label>
+              <label class="field-group" for="day-thursday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-thursday-end" name="day-thursday-end" />
+              </label>
+              <label class="field-group" for="day-thursday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-thursday-type" name="day-thursday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Viernes</h3>
+              <label class="field-group" for="day-friday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-friday-start" name="day-friday-start" />
+              </label>
+              <label class="field-group" for="day-friday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-friday-end" name="day-friday-end" />
+              </label>
+              <label class="field-group" for="day-friday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-friday-type" name="day-friday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
+            <div class="day-card">
+              <h3 class="day-name">Sábado</h3>
+              <label class="field-group" for="day-saturday-start">
+                <span class="label-text">Inicio</span>
+                <input type="datetime-local" id="day-saturday-start" name="day-saturday-start" />
+              </label>
+              <label class="field-group" for="day-saturday-end">
+                <span class="label-text">Fin</span>
+                <input type="datetime-local" id="day-saturday-end" name="day-saturday-end" />
+              </label>
+              <label class="field-group" for="day-saturday-type">
+                <span class="label-text">Tipo de día</span>
+                <select id="day-saturday-type" name="day-saturday-type">
+                  <option value="auto" selected>Automático</option>
+                  <option value="ordinario">Ordinario</option>
+                  <option value="dominical">Dominical</option>
+                  <option value="festivo">Festivo</option>
+                </select>
+              </label>
+            </div>
           </div>
         </fieldset>
         <div class="actions">
@@ -176,61 +178,66 @@
       </form>
     </section>
 
-    <section class="results" aria-labelledby="results-title">
-      <h2 id="results-title">Resultados acumulados</h2>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Semana</th>
-              <th>Día</th>
-              <th>RN (h)</th>
-              <th>HED (h)</th>
-              <th>HEDF (h)</th>
-              <th>HEN (h)</th>
-              <th>Total (h)</th>
-            </tr>
-          </thead>
-          <tbody id="results-body">
-            <tr>
-              <td colspan="7" class="empty">No hay jornadas para los filtros seleccionados.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <div class="side-column">
+      <section class="results" aria-labelledby="results-title">
+        <div class="section-header">
+          <h2 id="results-title">Resultados acumulados</h2>
+          <p class="hint">Revise el detalle de cada jornada registrada.</p>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Semana</th>
+                <th>Día</th>
+                <th>RN (h)</th>
+                <th>HED (h)</th>
+                <th>HEDF (h)</th>
+                <th>HEN (h)</th>
+                <th>Total (h)</th>
+              </tr>
+            </thead>
+            <tbody id="results-body">
+              <tr>
+                <td colspan="7" class="empty">No hay jornadas para los filtros seleccionados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-    <aside class="summary" aria-labelledby="summary-title">
-      <h2 id="summary-title">Resumen de horas acumuladas</h2>
-      <div class="filters" aria-label="Filtros de resumen">
-        <label for="week-filter">Semana</label>
-        <select id="week-filter">
-          <option value="">Todas las semanas</option>
-        </select>
-      </div>
-      <dl>
-        <div>
-          <dt>Total RN</dt>
-          <dd><span id="total-rn">0</span> h</dd>
+      <aside class="summary" aria-labelledby="summary-title">
+        <h2 id="summary-title">Resumen de horas acumuladas</h2>
+        <div class="filters" aria-label="Filtros de resumen">
+          <label for="week-filter">Semana</label>
+          <select id="week-filter">
+            <option value="">Todas las semanas</option>
+          </select>
         </div>
-        <div>
-          <dt>Total HED</dt>
-          <dd><span id="total-hed">0</span> h</dd>
-        </div>
-        <div>
-          <dt>Total HEDF</dt>
-          <dd><span id="total-hedf">0</span> h</dd>
-        </div>
-        <div>
-          <dt>Total HEN</dt>
-          <dd><span id="total-hen">0</span> h</dd>
-        </div>
-        <div class="highlight">
-          <dt>Total de horas registradas</dt>
-          <dd><span id="total-hours">0</span> h</dd>
-        </div>
-      </dl>
-    </aside>
+        <dl>
+          <div>
+            <dt>Total RN</dt>
+            <dd><span id="total-rn">0</span> h</dd>
+          </div>
+          <div>
+            <dt>Total HED</dt>
+            <dd><span id="total-hed">0</span> h</dd>
+          </div>
+          <div>
+            <dt>Total HEDF</dt>
+            <dd><span id="total-hedf">0</span> h</dd>
+          </div>
+          <div>
+            <dt>Total HEN</dt>
+            <dd><span id="total-hen">0</span> h</dd>
+          </div>
+          <div class="highlight">
+            <dt>Total de horas registradas</dt>
+            <dd><span id="total-hours">0</span> h</dd>
+          </div>
+        </dl>
+      </aside>
+    </div>
   </main>
 
   <footer>
