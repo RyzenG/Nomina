@@ -303,7 +303,7 @@ function applyAutomaticRest(segments) {
     0
   );
 
-  if (totalMinutes < 360) {
+  if (totalMinutes < 480) {
     return segments;
   }
 
