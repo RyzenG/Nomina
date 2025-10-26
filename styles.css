@@ -58,6 +58,40 @@ aside {
   gap: var(--spacing);
 }
 
+.schedule {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.schedule legend {
+  font-weight: 700;
+  padding: 0 0.25rem;
+}
+
+.schedule .day-row {
+  display: grid;
+  gap: clamp(0.5rem, 1.5vw, 1rem);
+  grid-template-columns: minmax(7rem, 0.6fr) repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
+.schedule .day-name {
+  font-weight: 600;
+}
+
+.schedule .field-group {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.schedule .label-text {
+  font-weight: 600;
+}
+
 .field {
   display: grid;
   gap: 0.35rem;
@@ -196,6 +230,15 @@ tbody tr:nth-child(even) td {
 
   main {
     grid-template-columns: 1fr;
+  }
+
+  .schedule .day-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .schedule .day-name {
+    margin-bottom: 0.25rem;
   }
 
   table th,
