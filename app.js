@@ -3,6 +3,9 @@ const errorsEl = document.getElementById("form-errors");
 const tableBody = document.getElementById("results-body");
 const resetButton = document.getElementById("reset");
 const weekFilter = document.getElementById("week-filter");
+const weekInput = form.week;
+const shiftSpanSelect = document.getElementById("shift-span");
+const weeklyHoursList = document.getElementById("weekly-hours-list");
 const totalsEls = {
   rn: document.getElementById("total-rn"),
   hed: document.getElementById("total-hed"),
@@ -23,6 +26,16 @@ const DAYS = [
   { key: "friday", label: "Viernes" },
   { key: "saturday", label: "Sábado" },
 ];
+
+const DAY_OFFSETS = {
+  monday: 0,
+  tuesday: 1,
+  wednesday: 2,
+  thursday: 3,
+  friday: 4,
+  saturday: 5,
+  sunday: -1,
+};
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -118,6 +131,8 @@ resetButton.addEventListener("click", () => {
 });
 
 weekFilter.addEventListener("change", handleFilterChange);
+weekInput.addEventListener("change", handleWeekSelectionChange);
+shiftSpanSelect.addEventListener("change", handleShiftSpanChange);
 
 function calculateShift({
   start,
@@ -167,10 +182,11 @@ function calculateShift({
       dayOrdinaryBudget.set(dayKey, 480); // 8 horas diarias estándar.
     }
 
+    let budget = dayOrdinaryBudget.get(dayKey);
+
     if (dayType === "ordinario") {
       const weeklyUsed = weeklyOrdinaryMinutes.get(weekKey) ?? 0;
       const weeklyRemaining = Math.max(0, WEEKLY_ORDINARY_LIMIT - weeklyUsed);
-      const budget = dayOrdinaryBudget.get(dayKey);
       const usableWeekly = Math.min(minutes, weeklyRemaining);
       const usable = Math.min(usableWeekly, budget);
       const remaining = minutes - usable;
@@ -191,15 +207,33 @@ function calculateShift({
         }
       }
 
-      dayOrdinaryBudget.set(dayKey, Math.max(0, budget - usable));
+      budget = Math.max(0, budget - usable);
+      dayOrdinaryBudget.set(dayKey, budget);
       weeklyOrdinaryMinutes.set(weekKey, weeklyUsed + usable);
     } else {
       // Para jornadas dominicales o festivas mantenemos las horas diurnas como HEDF
       // pero las nocturnas se contabilizan como RN para reflejar el recargo nocturno
       // esperado en escenarios como domingo 19:00 a lunes 05:00.
       if (isDiurnal) {
-        totals.hedf += minutes;
-        dayTotals.hedf += minutes;
+        if (dayType === "dominical") {
+          const usable = Math.min(minutes, budget);
+          const remaining = minutes - usable;
+
+          if (usable > 0) {
+            totals.ordinary += usable;
+            dayTotals.ordinary += usable;
+            budget = Math.max(0, budget - usable);
+            dayOrdinaryBudget.set(dayKey, budget);
+          }
+
+          if (remaining > 0) {
+            totals.hedf += remaining;
+            dayTotals.hedf += remaining;
+          }
+        } else {
+          totals.hedf += minutes;
+          dayTotals.hedf += minutes;
+        }
       } else {
         totals.rn += minutes;
         dayTotals.rn += minutes;
@@ -244,7 +278,7 @@ function applyAutomaticRest(segments) {
     0
   );
 
-  if (totalMinutes < 60) {
+  if (totalMinutes < 360) {
     return segments;
   }
 
@@ -466,24 +500,42 @@ function updateTable() {
 function updateSummary() {
   const filtered = getFilteredRecords();
   const weekFilterValue = weekFilter.value;
-  const totals = filtered.reduce(
-    (acc, record) => {
-      const relevantEntries = weekFilterValue
-        ? record.entries.filter((entry) => entry.week === weekFilterValue)
-        : record.entries;
+  const totals = { rn: 0, hed: 0, hedf: 0, hen: 0, ordinary: 0 };
+  const weeklyTotals = new Map();
 
-      for (const entry of relevantEntries) {
-        const values = entry.values;
-        acc.rn += values.rn ?? 0;
-        acc.hed += values.hed ?? 0;
-        acc.hedf += values.hedf ?? 0;
-        acc.hen += values.hen ?? 0;
-        acc.ordinary += values.ordinary ?? 0;
+  for (const record of filtered) {
+    const relevantEntries = weekFilterValue
+      ? record.entries.filter((entry) => entry.week === weekFilterValue)
+      : record.entries;
+
+    for (const entry of relevantEntries) {
+      const values = entry.values;
+      const weekKey = entry.week;
+
+      totals.rn += values.rn ?? 0;
+      totals.hed += values.hed ?? 0;
+      totals.hedf += values.hedf ?? 0;
+      totals.hen += values.hen ?? 0;
+      totals.ordinary += values.ordinary ?? 0;
+
+      if (!weeklyTotals.has(weekKey)) {
+        weeklyTotals.set(weekKey, {
+          rn: 0,
+          hed: 0,
+          hedf: 0,
+          hen: 0,
+          ordinary: 0,
+        });
       }
-      return acc;
-    },
-    { rn: 0, hed: 0, hedf: 0, hen: 0, ordinary: 0 }
-  );
+
+      const accumulator = weeklyTotals.get(weekKey);
+      accumulator.rn += values.rn ?? 0;
+      accumulator.hed += values.hed ?? 0;
+      accumulator.hedf += values.hedf ?? 0;
+      accumulator.hen += values.hen ?? 0;
+      accumulator.ordinary += values.ordinary ?? 0;
+    }
+  }
 
   totalsEls.rn.textContent = toHours(totals.rn).toFixed(2);
   totalsEls.hed.textContent = toHours(totals.hed).toFixed(2);
@@ -492,6 +544,8 @@ function updateSummary() {
 
   const totalHours = toHours(totals.rn + totals.hed + totals.hedf + totals.hen + totals.ordinary);
   totalsEls.hours.textContent = totalHours.toFixed(2);
+
+  updateWeeklyHoursList(weeklyTotals);
 }
 
 function getFilteredRecords() {
@@ -546,6 +600,107 @@ function handleFilterChange() {
   updateSummary();
 }
 
+function handleWeekSelectionChange() {
+  const weekValue = weekInput.value ? weekInput.value.trim() : "";
+  if (!weekValue) {
+    return;
+  }
+  applyWeekSelection(weekValue);
+}
+
+function handleShiftSpanChange() {
+  const weekValue = weekInput.value ? weekInput.value.trim() : "";
+  if (!weekValue) {
+    return;
+  }
+  applyWeekSelection(weekValue);
+}
+
+function applyWeekSelection(weekValue) {
+  const baseDates = getDatesForISOWeek(weekValue);
+  if (!baseDates) {
+    return;
+  }
+
+  for (const day of DAYS) {
+    const baseDate = baseDates[day.key];
+    if (!baseDate) continue;
+
+    const startField = form[`day-${day.key}-start`];
+    const endField = form[`day-${day.key}-end`];
+
+    setFieldDate(startField, baseDate);
+
+    const endDate = new Date(baseDate);
+    if (shiftSpanSelect.value === "pm") {
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
+    setFieldDate(endField, endDate);
+  }
+}
+
+function getDatesForISOWeek(weekValue) {
+  const match = weekValue.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number.parseInt(match[1], 10);
+  const weekNumber = Number.parseInt(match[2], 10);
+
+  const fourthOfJanuary = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = fourthOfJanuary.getUTCDay() || 7;
+  const isoWeekStartUtc = new Date(fourthOfJanuary);
+  isoWeekStartUtc.setUTCDate(
+    fourthOfJanuary.getUTCDate() - (dayOfWeek - 1) + (weekNumber - 1) * 7
+  );
+
+  const monday = new Date(
+    isoWeekStartUtc.getUTCFullYear(),
+    isoWeekStartUtc.getUTCMonth(),
+    isoWeekStartUtc.getUTCDate()
+  );
+
+  const dates = {};
+
+  for (const day of DAYS) {
+    const offset = DAY_OFFSETS[day.key];
+    if (typeof offset !== "number") continue;
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + offset);
+    dates[day.key] = date;
+  }
+
+  return dates;
+}
+
+function setFieldDate(field, date) {
+  if (!field || !date) {
+    return;
+  }
+
+  const isoDate = formatDateForInput(date);
+  const timePart = extractTimePart(field.value);
+  const newValue = `${isoDate}T${timePart ?? "00:00"}`;
+  field.value = newValue;
+}
+
+function formatDateForInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function extractTimePart(value) {
+  if (!value) {
+    return null;
+  }
+  const parts = value.split("T");
+  return parts[1] ?? null;
+}
+
 function resolveWeekKey(date, override) {
   if (override) {
     return override;
@@ -584,6 +739,50 @@ function formatDayLabel(dayKey) {
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+function updateWeeklyHoursList(weeklyTotals) {
+  weeklyHoursList.innerHTML = "";
+
+  const entries = Array.from(weeklyTotals.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
+
+  if (entries.length === 0) {
+    const item = document.createElement("li");
+    item.className = "empty";
+    item.textContent = "Sin horas registradas para el filtro actual.";
+    weeklyHoursList.append(item);
+    return;
+  }
+
+  for (const [week, values] of entries) {
+    const totalMinutes =
+      (values.rn ?? 0) +
+      (values.hed ?? 0) +
+      (values.hedf ?? 0) +
+      (values.hen ?? 0) +
+      (values.ordinary ?? 0);
+
+    const totalHours = toHours(totalMinutes).toFixed(2);
+    const ordinaryHours = toHours(values.ordinary ?? 0).toFixed(2);
+    const rnHours = toHours(values.rn ?? 0).toFixed(2);
+    const hedHours = toHours(values.hed ?? 0).toFixed(2);
+    const hedfHours = toHours(values.hedf ?? 0).toFixed(2);
+    const henHours = toHours(values.hen ?? 0).toFixed(2);
+
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <div class="week-row">
+        <span>${week}</span>
+        <span>${totalHours} h</span>
+      </div>
+      <div class="week-detail">
+        Ord: ${ordinaryHours} h · RN: ${rnHours} h · HED: ${hedHours} h · HEDF: ${hedfHours} h · HEN: ${henHours} h
+      </div>
+    `;
+    weeklyHoursList.append(item);
+  }
 }
 
 function logManualExamples() {
@@ -646,6 +845,8 @@ function logManualExamples() {
 updateFilters();
 updateTable();
 updateSummary();
+
+handleWeekSelectionChange();
 
 logManualExamples();
 
